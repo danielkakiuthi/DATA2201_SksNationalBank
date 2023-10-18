@@ -1,8 +1,8 @@
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 --------------------------------------------------------------- CREATE DATABASE --------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
-GO
 USE master
+GO
 
 IF EXISTS (SELECT name FROM sys.databases WHERE name = 'SksNationalBank')
 	DROP DATABASE SksNationalBank
@@ -10,7 +10,7 @@ IF EXISTS (SELECT name FROM sys.databases WHERE name = 'SksNationalBank')
 CREATE DATABASE SksNationalBank
 GO
 USE SksNationalBank
-
+GO
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------- CREATE TABLES ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ CREATE TABLE Customers (
 CREATE TABLE Employees (
 	employee_id INT IDENTITY PRIMARY KEY,
 	manager_id INT FOREIGN KEY REFERENCES Employees(employee_id),
-	start_date DATE,
+	start_date_employment DATE,
 	length_employment_days INT,
 	employee_name VARCHAR(50),
 	employee_address VARCHAR(50)
@@ -66,7 +66,7 @@ CREATE TABLE EmploymentRole (
 	employment_role_id INT IDENTITY PRIMARY KEY,
 	branch_id INT FOREIGN KEY REFERENCES Branches(branch_id),
 	employee_id INT FOREIGN KEY REFERENCES Employees(employee_id),
-	role VARCHAR(50)
+	role_type VARCHAR(50)
 )
 
 CREATE TABLE LoanTransactions (
@@ -116,7 +116,7 @@ VALUES
     ('Andrew Walker', '777 Yellow Oak St'),
     ('Grace Wright', '888 Purple Oak St');
 
-INSERT INTO Employees (manager_id, start_date, length_employment_days, employee_name, employee_address)
+INSERT INTO Employees (manager_id, start_date_employment, length_employment_days, employee_name, employee_address)
 VALUES
     (NULL, '2022-01-10', 300, 'David Johnson', '123 Manager Ave'),
     (1, '2022-02-15', 280, 'Susan Wilson', '456 Employee St'),
@@ -201,7 +201,7 @@ VALUES
     (9, 10, 'Savings Advisor'),
     (10, 11, 'Investment Advisor');
 
-INSERT INTO EmploymentRole (branch_id, employee_id, role)
+INSERT INTO EmploymentRole (branch_id, employee_id, role_type)
 VALUES
     (1, 2, 'Manager'),
     (1, 3, 'Teller'),
@@ -249,11 +249,14 @@ VALUES
  * As a bank manager, I want to retrieve detailed information about a specific customer identified by their customer ID so that I can quickly access their
  * contact information and other customer-specific details.
  */
+DROP PROCEDURE IF EXISTS GetCustomerInformation
 GO
-CREATE PROCEDURE GetCustomerInformation (@customerID INT)
+CREATE PROCEDURE GetCustomerInformation(@customerID INT)
 AS
 BEGIN
-    SELECT * FROM Customers WHERE customer_id = @customerID;
+    SELECT *
+	FROM Customers
+	WHERE customer_id = @customerID;
 END;
 
 
@@ -261,13 +264,15 @@ END;
  * As a bank manager, I need a way to list all the accounts associated with a particular customer identified by their customer ID so that I can see their 
  * account details and financial activity.
  */
+DROP PROCEDURE IF EXISTS ListCustomerAccounts
 GO
-CREATE PROCEDURE ListCustomerAccountsUsingBridge(@customerID INT)
+CREATE PROCEDURE ListCustomerAccounts(@customerID INT)
 AS
 BEGIN
     SELECT DISTINCT A.*
-    FROM Accounts A
-    JOIN RegularTransactions RT ON A.account_id = RT.account_id
+    FROM
+		Accounts A INNER JOIN
+		RegularTransactions RT ON A.account_id = RT.account_id
     WHERE RT.customer_id = @customerID;
 END;
 
@@ -276,13 +281,15 @@ END;
  * As a bank manager, I want to calculate and display the total account balance for a specific customer identified by their customer ID to understand their 
  * overall financial standing with the bank.
  */
+DROP PROCEDURE IF EXISTS GetCustomerTotalBalance
 GO
-CREATE PROCEDURE GetCustomerTotalBalanceUsingBridge(@customerID INT)
+CREATE PROCEDURE GetCustomerTotalBalance(@customerID INT)
 AS
 BEGIN
     SELECT SUM(A.balance) AS TotalBalance
-    FROM Accounts A
-    JOIN RegularTransactions RT ON A.account_id = RT.account_id
+    FROM
+		Accounts A INNER JOIN
+		RegularTransactions RT ON A.account_id = RT.account_id
     WHERE RT.customer_id = @customerID;
 END;
 
@@ -291,11 +298,15 @@ END;
  * As a bank manager, I would like to view the most recent financial transactions for a particular customer, identified by their customer ID, to monitor their
  * recent financial activities.
  */
+DROP PROCEDURE IF EXISTS GetCustomerRecentTransactions
 GO
 CREATE PROCEDURE GetCustomerRecentTransactions(@customerID INT)
 AS
 BEGIN
-    SELECT * FROM RegularTransactions WHERE customer_id = @customerID ORDER BY date_transaction DESC;
+    SELECT *
+	FROM RegularTransactions
+	WHERE customer_id = @customerID
+	ORDER BY date_transaction DESC;
 END;
 
 
@@ -303,14 +314,18 @@ END;
  * As a bank manager, I need to identify the financial advisor responsible for guiding a specific customer, identified by their customer ID, so that I can 
  * coordinate with the advisor for tailored financial services.
  */
+DROP PROCEDURE IF EXISTS GetCustomerFinancialAdvisor
 GO
 CREATE PROCEDURE GetCustomerFinancialAdvisor(@customerID INT)
 AS
 BEGIN
-    SELECT f.*, e.employee_name
-    FROM FinancialAdvisor f
-    JOIN Employees e ON f.employee_id = e.employee_id
-    WHERE f.customer_id = @customerID;
+    SELECT
+		FA.*,
+		E.employee_name
+    FROM
+		FinancialAdvisor FA INNER JOIN
+		Employees E ON FA.employee_id = E.employee_id
+    WHERE FA.customer_id = @customerID;
 END;
 
 
@@ -318,15 +333,19 @@ END;
  * As a bank manager, I want to access the loan details, including loan amounts and associated branches, for a particular customer, identified by their 
  * customer ID, to provide better assistance with their loan-related inquiries.
  */
+DROP PROCEDURE IF EXISTS GetCustomerLoans
 GO
 CREATE PROCEDURE GetCustomerLoans(@customerID INT)
 AS
 BEGIN
-    SELECT l.*, b.branch_name
-    FROM LoanTransactions lt
-    JOIN Loans l ON lt.loan_id = l.loan_id
-    JOIN Branches b ON l.branch_id = b.branch_id
-    WHERE lt.customer_id = @customerID;
+    SELECT
+		L.*,
+		B.branch_name
+    FROM
+		LoanTransactions LT INNER JOIN 
+		Loans L ON LT.loan_id = L.loan_id INNER JOIN 
+		Branches B ON L.branch_id = B.branch_id
+    WHERE LT.customer_id = @customerID;
 END;
 
 
@@ -334,14 +353,20 @@ END;
  * As a bank manager, I need to find out the role and branch of a particular employee, identified by their employee ID, to understand their responsibilities
  * and work location.
  */
+DROP PROCEDURE IF EXISTS GetEmployeeRoleAndBranch
 GO
 CREATE PROCEDURE GetEmployeeRoleAndBranch(@employeeID INT)
 AS
 BEGIN
-    SELECT ef.role, b.branch_name
-    FROM EmploymentFunction ef
-    JOIN Branches b ON ef.branch_id = b.branch_id
-    WHERE ef.employee_id = @employeeID;
+    SELECT
+		ER.*,
+		B.branch_name,
+		E.employee_name
+    FROM
+		EmploymentRole ER INNER JOIN
+		Branches B ON ER.branch_id = B.branch_id INNER JOIN
+		Employees E ON ER.employee_id = E.employee_id
+    WHERE ER.employee_id = @employeeID;
 END;
 
 
@@ -349,24 +374,33 @@ END;
  * As a bank manager, I want to identify and review all transactions in which a specific customer, identified by their customer ID, encountered overdraft 
  * situations to manage potential issues and offer solutions.
  */
+DROP PROCEDURE IF EXISTS GetCustomerOverdraftTransactions
 GO
 CREATE PROCEDURE GetCustomerOverdraftTransactions(@customerID INT)
 AS
 BEGIN
-    SELECT * FROM RegularTransactions WHERE customer_id = @customerID AND is_transaction_in_overdraft = 1;
+    SELECT *
+	FROM RegularTransactions
+	WHERE
+		customer_id = @customerID AND
+		is_transaction_in_overdraft = 1;
 END;
 
 
  /* User Story 9
  * As a bank manager, I need to calculate the average account balance for each branch to assess branch performance and allocate resources accordingly.
  */
+DROP PROCEDURE IF EXISTS GetAverageAccountBalanceByBranch
 GO
 CREATE PROCEDURE GetAverageAccountBalanceByBranch
 AS
 BEGIN
-    SELECT b.branch_name, AVG(a.balance) AS AverageBalance
-    FROM Accounts a
-    JOIN Branches b ON a.branch_id = b.branch_id
+    SELECT
+		B.branch_name,
+		AVG(A.balance) AS AverageBalance
+    FROM
+		Accounts A INNER JOIN
+		Branches B ON A.branch_id = B.branch_id
     GROUP BY b.branch_name;
 END;
 
@@ -375,12 +409,64 @@ END;
  * As a bank manager, I want to list all employees working at a particular branch, identified by the branch ID, to understand the branch's staffing and
  * roles for better management and coordination.
  */
+DROP PROCEDURE IF EXISTS ListEmployeesInBranch
 GO
 CREATE PROCEDURE ListEmployeesInBranch(@branchID INT)
 AS
 BEGIN
-    SELECT e.employee_name, ef.role
-    FROM EmploymentFunction ef
-    JOIN Employees e ON ef.employee_id = e.employee_id
-    WHERE ef.branch_id = @branchID;
+    SELECT
+		E.employee_name,
+		ER.role_type,
+		B.*
+    FROM
+		EmploymentRole ER INNER JOIN
+		Employees E ON ER.employee_id = E.employee_id INNER JOIN
+		Branches B ON B.branch_id = ER.branch_id
+    WHERE ER.branch_id = @branchID;
 END;
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------- TEST STORED PROCEDURES -----------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- User Story 1 --
+EXEC GetCustomerInformation @customerID=1
+GO
+
+-- User Story 2 --
+EXEC ListCustomerAccounts @customerID=1
+GO
+
+-- User Story 3 --
+EXEC GetCustomerTotalBalance @customerID=1
+GO
+
+-- User Story 4 --
+EXEC GetCustomerRecentTransactions @customerID=1
+GO
+
+-- User Story 5 --
+EXEC GetCustomerFinancialAdvisor @customerID=1
+GO
+
+-- User Story 6 --
+EXEC GetCustomerLoans @customerID=1
+GO
+
+-- User Story 7 --
+EXEC GetEmployeeRoleAndBranch @employeeID=2
+GO
+
+-- User Story 8 --
+EXEC GetCustomerOverdraftTransactions @customerID=3
+GO
+
+-- User Story 9 --
+EXEC GetAverageAccountBalanceByBranch
+GO
+
+-- User Story 10 --
+EXEC ListEmployeesInBranch @branchID=4
+GO
